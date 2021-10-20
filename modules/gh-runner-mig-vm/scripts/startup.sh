@@ -34,31 +34,44 @@ export $(echo "$secrets" | jq -r "to_entries|map(\"\(.key)=\(.value|tostring)\")
 GH_RUNNER_VERSION="2.283.2"
 #get actions binary
 curl -o actions.tar.gz --location "https://github.com/actions/runner/releases/download/v${GH_RUNNER_VERSION}/actions-runner-linux-x64-${GH_RUNNER_VERSION}.tar.gz"
-mkdir /runner
-mkdir /runner-tmp
-tar -zxf actions.tar.gz --directory /runner
-rm -f actions.tar.gz
-/runner/bin/installdependencies.sh
-#get actions token
-# shellcheck disable=SC2034
-# ACTIONS_RUNNER_INPUT_NAME is used by config.sh
-ACTIONS_RUNNER_INPUT_NAME=$HOSTNAME
-if [[ -z $REPO_NAME ]]; then
-    # Add action runner for an organisation
-    POST_URL="https://api.github.com/orgs/${REPO_OWNER}/actions/runners/registration-token"
-    GH_URL="https://github.com/${REPO_OWNER}"
-else
-    # Add action runner for a repo
-    POST_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runners/registration-token"
-    GH_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}"
-fi
 
 # Register runner
-ACTIONS_RUNNER_INPUT_TOKEN="$(curl -sS --request POST --url "$POST_URL" --header "authorization: Bearer ${GITHUB_TOKEN}" --header 'content-type: application/json' | jq -r .token)"
-#configure runner
-RUNNER_ALLOW_RUNASROOT=1 /runner/config.sh --unattended --replace --work "/runner-tmp" --url "$GH_URL" --token "$ACTIONS_RUNNER_INPUT_TOKEN" --labels "$LABELS"
+install_runner() {
+    COUNT=$1
+    RUNNER_DIR="/runner-$COUNT"
+    RUNNER_TEMP_DIR="$RUNNER_DIR/tmp"
+    RUNNER_NAME="$HOSTNAME-$COUNT"
+    mkdir -p "$RUNNER_TEMP_DIR"
+    tar -zxf actions.tar.gz --directory "$RUNNER_DIR"
+    
+    "$RUNNER_DIR"/bin/installdependencies.sh
+    echo "Registering Github action runner '$RUNNER_NAME'"
+    if [[ -z $REPO_NAME ]]; then
+        # Add action runner for an organisation
+        POST_URL="https://api.github.com/orgs/${REPO_OWNER}/actions/runners/registration-token"
+        GH_URL="https://github.com/${REPO_OWNER}"
+    else
+        # Add action runner for a repo
+        POST_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runners/registration-token"
+        GH_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}"
+    fi
 
-#install and start runner service
-cd /runner || exit
-./svc.sh install
-./svc.sh start
+    #get actions token
+    ACTIONS_RUNNER_INPUT_TOKEN="$(curl -sS --request POST --url "$POST_URL" --header "authorization: Bearer ${GITHUB_TOKEN}" --header 'content-type: application/json' | jq -r .token)"
+    #configure runner
+    RUNNER_ALLOW_RUNASROOT=1 "$RUNNER_DIR"/config.sh --unattended --name "$RUNNER_NAME" --replace --work "$RUNNER_TEMP_DIR" --url "$GH_URL" --token "$ACTIONS_RUNNER_INPUT_TOKEN" --labels "$LABELS"
+
+    #install and start runner service
+    cd "$RUNNER_DIR" || exit
+    ./svc.sh install
+    ./svc.sh start
+    # exit to previous directory
+    cd - || exit
+}
+
+# Register configured number of github runners instances
+for ((i = 1; i <= GH_RUNNER_INSTANCES_COUNT; i++)); do
+    install_runner "$i"
+done
+
+rm -f actions.tar.gz

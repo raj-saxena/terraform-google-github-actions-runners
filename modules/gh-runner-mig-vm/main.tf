@@ -93,10 +93,11 @@ resource "google_secret_manager_secret_version" "gh-secret-version" {
   provider = google-beta
   secret   = google_secret_manager_secret.gh-secret.id
   secret_data = jsonencode({
-    "REPO_NAME"    = var.repo_name
-    "REPO_OWNER"   = var.repo_owner
-    "GITHUB_TOKEN" = var.gh_token
-    "LABELS"       = join(",", var.gh_runner_labels)
+    "REPO_NAME"                 = var.repo_name
+    "REPO_OWNER"                = var.repo_owner
+    "GITHUB_TOKEN"              = var.gh_token
+    "LABELS"                    = join(",", var.gh_runner_labels)
+    "GH_RUNNER_INSTANCES_COUNT" = var.gh_runner_instances_per_vm
   })
 }
 

@@ -89,6 +89,12 @@ variable "gh_runner_labels" {
   default     = []
 }
 
+variable "gh_runner_instances_per_vm" {
+  type        = number
+  description = "Number of instances to register per compute instance"
+  default     = 1
+}
+
 variable "min_replicas" {
   type        = number
   description = "Minimum number of runner instances"
