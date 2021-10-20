@@ -33,6 +33,7 @@ This example shows how to deploy a MIG Self Hosted Runner with an image pre-bake
 | create\_network | When set to true, VPC,router and NAT will be auto created | `bool` | `true` | no |
 | create\_subnetwork | Whether to create subnetwork or use the one provided via subnet\_name | `bool` | `true` | no |
 | custom\_metadata | User provided custom metadata | `map(any)` | `{}` | no |
+| gh\_runner\_instances\_per\_vm | Number of instances to register per compute instance | `number` | `1` | no |
 | gh\_runner\_labels | GitHub runner labels to attach to the runners. Docs: https://docs.github.com/en/actions/hosting-your-own-runners/using-labels-with-self-hosted-runners | `set(string)` | `[]` | no |
 | gh\_token | Github token that is used for generating Self Hosted Runner Token | `string` | n/a | yes |
 | instance\_name | The gce instance name | `string` | `"gh-runner"` | no |

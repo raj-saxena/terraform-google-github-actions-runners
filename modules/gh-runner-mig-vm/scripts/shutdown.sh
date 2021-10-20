@@ -26,16 +26,32 @@ secrets=$(gcloud secrets versions access "$SECRET_VERSION" --secret="$SECRET_NAM
 # shellcheck disable=SC2046
 # we want to use wordsplitting
 export $(echo "$secrets" | jq -r "to_entries|map(\"\(.key)=\(.value|tostring)\")|.[]")
+
 #stop and uninstall the runner service
-cd /runner || exit
-./svc.sh stop
-./svc.sh uninstall
-if [[ -z $REPO_NAME ]]; then
-    # Remove action runner from the organisation
-    POST_URL="https://api.github.com/orgs/${REPO_OWNER}/actions/runners/remove-token"
-else
-    # Remove action runner from the repo
-    POST_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runners/registration-token"
-fi
-#remove the runner configuration
-RUNNER_ALLOW_RUNASROOT=1 /runner/config.sh remove --unattended --token "$(curl -sS --request POST --url "$POST_URL" --header "authorization: Bearer ${GITHUB_TOKEN}" --header "content-type: application/json" | jq -r .token)"
+uninstall_runner() {
+    COUNT=$1
+    RUNNER_DIR="/runner-$COUNT"
+    RUNNER_NAME="$HOSTNAME-$COUNT"
+    cd "$RUNNER_DIR" || exit
+    echo "De-registering $RUNNER_NAME"
+    ./svc.sh stop
+    ./svc.sh uninstall
+    if [[ -z $REPO_NAME ]]; then
+        # Remove action runner from the organisation
+        POST_URL="https://api.github.com/orgs/${REPO_OWNER}/actions/runners/remove-token"
+    else
+        # Remove action runner from the repo
+        POST_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runners/remove-token"
+    fi
+    #remove the runner configuration
+    RUNNER_ALLOW_RUNASROOT=1 "$RUNNER_DIR"/config.sh remove --unattended --name "$RUNNER_NAME" --token "$(curl -sS --request POST --url "$POST_URL" --header "authorization: Bearer ${GITHUB_TOKEN}" --header "content-type: application/json" | jq -r .token)"
+
+    # Cleanup directories
+    cd - || exit
+    rm -rf "$RUNNER_DIR"
+}
+
+# De-register configured number of github runners instances
+for ((i = 1; i <= GH_RUNNER_INSTANCES_COUNT; i++)); do
+    uninstall_runner "$i"
+done
